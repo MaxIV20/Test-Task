@@ -14,7 +14,7 @@
         <div class="search-list-container" @click="founDefaultCity">
           <div
             class="search-list__item"
-            v-for="item in Cities"
+            v-for="item in itemArr"
             :key="item.name"
           >
             {{ item.name }}
@@ -26,7 +26,7 @@
           {{ weatherData.location }}
         </div>
         <div class="change-location-container">
-          <button class="change-location" @click.stop="selectLocation">
+          <button class="change-location" @click.stop="hideSearch">
             Сменить город
           </button>
           <button class="my-location" @click="getLocationWeather">
@@ -111,8 +111,6 @@ export default {
     return {
       showSearch: false,
       search: "",
-      Cities,
-      test: "fsdfsdfds",
       tempCel: true,
       tempCelVal: 0,
       tempFor: false,
@@ -129,6 +127,7 @@ export default {
         windDirection: "",
         humidity: 0,
       },
+      Cities,
     };
   },
   methods: {
@@ -170,7 +169,7 @@ export default {
       ];
     },
 
-    selectLocation() {
+    hideSearch() {
       this.showSearch = !this.showSearch;
     },
 
@@ -180,7 +179,7 @@ export default {
       let item = ev.target;
 
       if (item.closest(".search-container")) return;
-      this.selectLocation();
+      this.hideSearch();
     },
 
     getWeatherInfo(update) {
@@ -223,7 +222,7 @@ export default {
 
     foundCity(ev) {
       if ((ev.type == "keydown") & (ev.code != "Enter")) return;
-      this.selectLocation();
+      this.hideSearch();
 
       axios
         .get(
@@ -233,6 +232,7 @@ export default {
           (result) => {
             let update = result.data;
             this.getWeatherInfo(update);
+            this.search = "";
           },
           () => {
             alert("Нет информации по такому городу");
@@ -245,7 +245,7 @@ export default {
       if (!selectItem.matches(".search-list__item")) return;
 
       this.search = selectItem.textContent.trim();
-      this.selectLocation();
+      this.hideSearch();
 
       axios
         .get(
@@ -271,6 +271,28 @@ export default {
           let update = result.data;
           this.getWeatherInfo(update);
         });
+    },
+  },
+  computed: {
+    ArrCities() {
+      let a = Cities.sort((item1, item2) => {
+        return item1.name.localeCompare(item2.name);
+      });
+
+      console.log(a);
+      return a;
+    },
+    itemArr() {
+      let newArr = [];
+      let ob = this.ArrCities;
+
+      if (this.search == "") return newArr;
+
+      for (let i of ob) {
+        if (i.name.toLowerCase().startsWith(this.search.toLowerCase()))
+          newArr.push(i);
+      }
+      return newArr;
     },
   },
   created() {
