@@ -1,12 +1,17 @@
 <template>
-  <div class="widget">
+  <div class="widget" @click="closeSearch">
     <div class="widget__header">
       <div class="search-container" v-if="showSearch">
-        <input type="text" class="widget__search" v-model="search" />
-        <button class="widget__apply-location" @click="run2">
+        <input
+          type="text"
+          class="widget__search"
+          v-model="search"
+          @keydown="foundCity"
+        />
+        <button class="widget__apply-location" @click="foundCity">
           ок
         </button>
-        <div class="search-list-container" @click="selectCity">
+        <div class="search-list-container" @click="founDefaultCity">
           <div
             class="search-list__item"
             v-for="item in Cities"
@@ -21,10 +26,10 @@
           {{ weatherData.location }}
         </div>
         <div class="change-location-container">
-          <button class="change-location" @click="selectLocation">
+          <button class="change-location" @click.stop="selectLocation">
             Сменить город
           </button>
-          <button class="my-location">
+          <button class="my-location" @click="getLocationWeather">
             <svg
               class="my-location__icon"
               width="18"
@@ -109,7 +114,9 @@ export default {
       Cities,
       test: "fsdfsdfds",
       tempCel: true,
+      tempCelVal: 0,
       tempFor: false,
+      tempForVal: 0,
       weatherData: {
         temp: "0",
         location: "Неизвестно",
@@ -128,11 +135,11 @@ export default {
     changeTemp(ev) {
       let item = ev.target;
       if (item.classList.contains("temp-cel")) {
-        this.weatherData.temp = Math.ceil(this.weatherData.temp / 33.8);
+        this.weatherData.temp = this.tempCelVal;
         this.tempCel = true;
         this.tempFor = false;
       } else if (item.classList.contains("temp-foren")) {
-        this.weatherData.temp = Math.ceil(this.weatherData.temp * 33.8);
+        this.weatherData.temp = this.tempForVal;
         this.tempCel = false;
         this.tempFor = true;
       } else return;
@@ -167,14 +174,30 @@ export default {
       this.showSearch = !this.showSearch;
     },
 
+    closeSearch(ev) {
+      if (!this.showSearch) return;
+
+      let item = ev.target;
+
+      if (item.closest(".search-container")) return;
+      this.selectLocation();
+    },
+
     getWeatherInfo(update) {
-      this.weatherData.temp = Math.ceil(update.main.temp);
+      this.tempCelVal = Math.trunc(update.main.temp);
+      this.tempForVal = Math.trunc(this.tempCelVal * 1.8 + 32);
+
+      if (this.tempCel) {
+        this.weatherData.temp = this.tempCelVal;
+      } else {
+        this.weatherData.temp = this.tempForVal;
+      }
+
       this.weatherData.location = update.name;
       this.weatherData.title = update.weather[0].description;
       this.weatherData.pressure = update.main.pressure;
       this.weatherData.humidity = update.main.humidity;
-      this.weatherData.wind = update.wind.speed;
-      this.weatherData.windDirection = update.wind.deg;
+      this.weatherData.wind = Math.ceil(update.wind.speed);
       this.weatherData.url = `http://openweathermap.org/img/wn/${update.weather[0].icon}@4x.png`;
 
       let windDirection = update.wind.deg;
@@ -198,7 +221,8 @@ export default {
       }
     },
 
-    run2() {
+    foundCity(ev) {
+      if ((ev.type == "keydown") & (ev.code != "Enter")) return;
       this.selectLocation();
 
       axios
@@ -216,7 +240,7 @@ export default {
         );
     },
 
-    selectCity(ev) {
+    founDefaultCity(ev) {
       let selectItem = ev.target;
       if (!selectItem.matches(".search-list__item")) return;
 
@@ -232,21 +256,25 @@ export default {
           this.getWeatherInfo(update);
         });
     },
+
+    getLocationWeather() {
+      //   let coords = navigator.geolocation.getCurrentPosition((result) => {
+      //   this.weatherData.latitude = result.coords.latitude;
+      //   this.weatherData.longitude = result.coords.longitude;
+      // })
+      // Чтобы работало определение координат нужен https, иначе браузер не даёт их определить
+      axios
+        .get(
+          `http://api.openweathermap.org/data/2.5/weather?lat=${this.weatherData.latitude}&lon=${this.weatherData.longitude}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
+        )
+        .then((result) => {
+          let update = result.data;
+          this.getWeatherInfo(update);
+        });
+    },
   },
   created() {
-    //   let coords = navigator.geolocation.getCurrentPosition((result) => {
-    //   this.weatherData.latitude = result.coords.latitude;
-    //   this.weatherData.longitude = result.coords.longitude;
-    // })
-    // Чтобы работало определение координат нужен https, иначе браузер не даёт их определить
-    axios
-      .get(
-        `http://api.openweathermap.org/data/2.5/weather?lat=${this.weatherData.latitude}&lon=${this.weatherData.longitude}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
-      )
-      .then((result) => {
-        let update = result.data;
-        this.getWeatherInfo(update);
-      });
+    this.getLocationWeather();
   },
 };
 </script>
@@ -406,6 +434,7 @@ export default {
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .temp-cel {
@@ -482,7 +511,11 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: 25%;
+  width: 23%;
+
+  &:first-child {
+    width: 30%;
+  }
 }
 
 .subinfo-item__title {
