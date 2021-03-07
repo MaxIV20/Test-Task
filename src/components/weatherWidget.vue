@@ -14,7 +14,7 @@
         <div class="search-list-container" @click="founDefaultCity">
           <div
             class="search-list__item"
-            v-for="item in itemArr"
+            v-for="item in filterSearchItem"
             :key="item.name"
           >
             {{ item.name }}
@@ -89,7 +89,7 @@
       </div>
     </div>
     <div class="widget__subinfo">
-      <div class="subinfo-item" v-for="item in getSubitem()" :key="item.id">
+      <div class="subinfo-item" v-for="item in getSubitem" :key="item.id">
         <div class="subinfo-item__title">
           {{ item.title }}
         </div>
@@ -104,6 +104,7 @@
 <script>
 import Cities from "@/jsons/city-list.json";
 import axios from "axios";
+import { mapState } from "vuex";
 
 export default {
   name: "WeatherWidget",
@@ -111,39 +112,100 @@ export default {
     return {
       showSearch: false,
       search: "",
-      tempCel: true,
-      tempCelVal: 0,
-      tempFor: false,
-      tempForVal: 0,
-      weatherData: {
-        temp: "0",
-        location: "Неизвестно",
-        url: `http://openweathermap.org/img/wn/02d@4x.png`,
-        title: "Неизвестно",
-        latitude: 45.0328,
-        longitude: 38.9769,
-        pressure: 0,
-        wind: 0,
-        windDirection: "",
-        humidity: 0,
-      },
-      Cities,
     };
   },
   methods: {
+    // переключение температуры по чекбоксам
     changeTemp(ev) {
       let item = ev.target;
       if (item.classList.contains("temp-cel")) {
-        this.weatherData.temp = this.tempCelVal;
-        this.tempCel = true;
-        this.tempFor = false;
+        this.$store.commit("changeTempCel");
       } else if (item.classList.contains("temp-foren")) {
-        this.weatherData.temp = this.tempForVal;
-        this.tempCel = false;
-        this.tempFor = true;
+        this.$store.commit("changeTempFor");
       } else return;
     },
 
+    // скрытие/появление поиска
+    hideSearch() {
+      this.showSearch = !this.showSearch;
+    },
+
+    // закрытие поиска по клику
+    closeSearch(ev) {
+      if (!this.showSearch) return;
+
+      let item = ev.target;
+
+      if (item.closest(".search-container")) return;
+      this.hideSearch();
+    },
+
+    // отправка запроса по введённому порльзователем городу
+    foundCity(ev) {
+      if ((ev.type == "keydown") & (ev.code != "Enter")) return;
+      this.hideSearch();
+
+      axios
+        .get(
+          `http://api.openweathermap.org/data/2.5/weather?q=${this.search}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
+        )
+        .then(
+          (result) => {
+            let update = result.data;
+            this.$store.commit("getWeatherInfo", update);
+            this.search = "";
+          },
+          () => {
+            alert("Нет информации по такому городу");
+          }
+        );
+    },
+
+    // отправка запроса по городу из списка
+    founDefaultCity(ev) {
+      let selectItem = ev.target;
+
+      if (!selectItem.matches(".search-list__item")) return;
+
+      this.hideSearch();
+
+      axios
+        .get(
+          `http://api.openweathermap.org/data/2.5/weather?q=${selectItem.textContent.trim()}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
+        )
+        .then((result) => {
+          let update = result.data;
+          this.$store.commit("getWeatherInfo", update);
+          this.search = "";
+        });
+    },
+
+    // получение погоды по текущим координатам
+    getLocationWeather() {
+      // let coords = navigator.geolocation.getCurrentPosition((result) => {
+      //   this.$store.commit("getCoords", result);
+      // });
+      // Чтобы работало определение координат нужен https, иначе браузер не даёт их определить
+      axios
+        .get(
+          `http://api.openweathermap.org/data/2.5/weather?lat=${this.weatherData.latitude}&lon=${this.weatherData.longitude}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
+        )
+        .then((result) => {
+          let update = result.data;
+          this.$store.commit("getWeatherInfo", update);
+        });
+    },
+  },
+  computed: {
+    ...mapState([
+      "weatherData",
+      "tempCel",
+      "tempCelVal",
+      "tempFor",
+      "tempForVal",
+    ]),
+
+    // генерация и заполнение данных в нижжней части виджета
     getSubitem() {
       return [
         {
@@ -169,120 +231,16 @@ export default {
       ];
     },
 
-    hideSearch() {
-      this.showSearch = !this.showSearch;
-    },
-
-    closeSearch(ev) {
-      if (!this.showSearch) return;
-
-      let item = ev.target;
-
-      if (item.closest(".search-container")) return;
-      this.hideSearch();
-    },
-
-    getWeatherInfo(update) {
-      this.tempCelVal = Math.trunc(update.main.temp);
-      this.tempForVal = Math.trunc(this.tempCelVal * 1.8 + 32);
-
-      if (this.tempCel) {
-        this.weatherData.temp = this.tempCelVal;
-      } else {
-        this.weatherData.temp = this.tempForVal;
-      }
-
-      this.weatherData.location = update.name;
-      this.weatherData.title = update.weather[0].description;
-      this.weatherData.pressure = update.main.pressure;
-      this.weatherData.humidity = update.main.humidity;
-      this.weatherData.wind = Math.ceil(update.wind.speed);
-      this.weatherData.url = `http://openweathermap.org/img/wn/${update.weather[0].icon}@4x.png`;
-
-      let windDirection = update.wind.deg;
-
-      if (windDirection <= 44 || windDirection == 360) {
-        this.weatherData.windDirection = "северный";
-      } else if ((windDirection >= 45) & (windDirection <= 89)) {
-        this.weatherData.windDirection = "северо-восточный";
-      } else if ((windDirection >= 90) & (windDirection <= 134)) {
-        this.weatherData.windDirection = "восточный";
-      } else if ((windDirection >= 135) & (windDirection <= 179)) {
-        this.weatherData.windDirection = "юго-восточный";
-      } else if ((windDirection >= 180) & (windDirection <= 224)) {
-        this.weatherData.windDirection = "южный";
-      } else if ((windDirection >= 225) & (windDirection <= 269)) {
-        this.weatherData.windDirection = "юго-западный";
-      } else if ((windDirection >= 270) & (windDirection <= 314)) {
-        this.weatherData.windDirection = "западный";
-      } else if ((windDirection >= 315) & (windDirection <= 359)) {
-        this.weatherData.windDirection = "северо-западный";
-      }
-    },
-
-    foundCity(ev) {
-      if ((ev.type == "keydown") & (ev.code != "Enter")) return;
-      this.hideSearch();
-
-      axios
-        .get(
-          `http://api.openweathermap.org/data/2.5/weather?q=${this.search}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
-        )
-        .then(
-          (result) => {
-            let update = result.data;
-            this.getWeatherInfo(update);
-            this.search = "";
-          },
-          () => {
-            alert("Нет информации по такому городу");
-          }
-        );
-    },
-
-    founDefaultCity(ev) {
-      let selectItem = ev.target;
-      if (!selectItem.matches(".search-list__item")) return;
-
-      this.search = selectItem.textContent.trim();
-      this.hideSearch();
-
-      axios
-        .get(
-          `http://api.openweathermap.org/data/2.5/weather?q=${this.search}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
-        )
-        .then((result) => {
-          let update = result.data;
-          this.getWeatherInfo(update);
-          this.search = "";
-        });
-    },
-
-    getLocationWeather() {
-      //   let coords = navigator.geolocation.getCurrentPosition((result) => {
-      //   this.weatherData.latitude = result.coords.latitude;
-      //   this.weatherData.longitude = result.coords.longitude;
-      // })
-      // Чтобы работало определение координат нужен https, иначе браузер не даёт их определить
-      axios
-        .get(
-          `http://api.openweathermap.org/data/2.5/weather?lat=${this.weatherData.latitude}&lon=${this.weatherData.longitude}&appid=cc89ddbc2c29f2feea66c166069723a0&lang=ru&units=metric`
-        )
-        .then((result) => {
-          let update = result.data;
-          this.getWeatherInfo(update);
-        });
-    },
-  },
-  computed: {
-    ArrCities() {                                 // сортировка город по алфавиту
+    // сортировка городов по алфавиту
+    ArrCities() {
       let a = Cities.sort((item1, item2) => {
         return item1.name.localeCompare(item2.name);
       });
-      return a; 
+      return a;
     },
-    
-    itemArr() {
+
+    // фильтр умного поиска
+    filterSearchItem() {
       let newArr = [];
       let ob = this.ArrCities;
 
@@ -332,8 +290,8 @@ export default {
   width: 100%;
   max-height: 168px;
   background: white;
-  overflow: hidden scroll;
-  border-radius: 16px;
+  overflow: hidden auto;
+  border-radius: 8px;
 }
 
 .search-list__item {
