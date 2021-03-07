@@ -254,6 +254,7 @@ export default {
         .then((result) => {
           let update = result.data;
           this.getWeatherInfo(update);
+          this.search = "";
         });
     },
 
@@ -274,14 +275,13 @@ export default {
     },
   },
   computed: {
-    ArrCities() {
+    ArrCities() {                                 // сортировка город по алфавиту
       let a = Cities.sort((item1, item2) => {
         return item1.name.localeCompare(item2.name);
       });
-
-      console.log(a);
-      return a;
+      return a; 
     },
+    
     itemArr() {
       let newArr = [];
       let ob = this.ArrCities;
