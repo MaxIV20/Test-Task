@@ -1,4 +1,4 @@
-# test-task
+# Weather widget
 
 ## Project setup
 ```
